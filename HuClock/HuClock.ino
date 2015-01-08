@@ -9,16 +9,16 @@ LedControl lc=LedControl(12,11,10,1); // lc is our object
 int hackLightPin = 13;
 int hackButtonPin = A0;
 
-unsigned long CYCLE_TIME = 1000*60*60*4;
-unsigned long BASE_COOLDOWN_TIME = 1000*60*5;
-int BASE_N_HACKS = 4;
+int CYCLE_TIME = 40;//60*60*4;
+int BASE_COOLDOWN_TIME = 10;//60*5;
+int BASE_N_HACKS = 2;//;4;
 
-unsigned long cooldown_time = BASE_COOLDOWN_TIME;
+int cooldown_time = BASE_COOLDOWN_TIME;
 int nHacksPerCycle = BASE_N_HACKS;
 
 int cycleNHacks = 0;
-unsigned long cycleStartTime = 0;
-unsigned long lastHackTime = 0;
+int cycleStartTime = 0;
+int lastHackTime = 0;
 
 
 boolean hackButtonState = false;
@@ -39,9 +39,18 @@ void setup()
   Serial.begin(9600);
 }
 
-void showTime(unsigned long timeMillis)//int h, int m, int s)
+void showTime(int timeMillis)//int h, int m, int s)
 {
-  unsigned long fixedTime = timeMillis / 1000;
+  if (timeMillis == -1)
+  {
+    lc.setChar(0,0,' ',false);
+    lc.setChar(0,1,' ',false);
+    lc.setChar(0,2,' ',false);
+    lc.setChar(0,3,' ',false);
+    return;
+  }
+  
+  int fixedTime = timeMillis;
   int s = fixedTime % 60;
   fixedTime /= 60;
   int m = fixedTime % 60;
@@ -64,46 +73,85 @@ void showTime(unsigned long timeMillis)//int h, int m, int s)
   }
 }
 
+void showHacks(int n)
+{
+  if (n < 0) n = 0;
+  lc.setDigit(0,5,n%10, false);
+  lc.setDigit(0,4,n/10, false);
+}
+
 void setHackButton(boolean enabled)
 {
   digitalWrite(hackLightPin, enabled ? HIGH : LOW);
+}
+
+int getTime()
+{
+  return (int)(millis() / 1000);
 }
 
 void updateCycle()
 {
   if (cycleNHacks >= nHacksPerCycle)
   {
-    int timeLeft = CYCLE_TIME - (millis() - cycleStartTime);
+    int timeLeft = CYCLE_TIME - (getTime() - cycleStartTime);
     if (timeLeft <= 0)
     {
       // Cycle over!
       cycleStartTime = 0;
+      cycleNHacks = 0;
       lc.clearDisplay(0);
       setHackButton(true);
     }
     else
     {
       showTime(timeLeft);
+      showHacks(nHacksPerCycle - cycleNHacks);
     }
   }
   else
   {
-    int timeLeft = cooldown_time - (millis() - lastHackTime);
-    if (timeLeft <= 0)
+    if (lastHackTime == 0)
     {
-      lc.clearDisplay(0);
-      lastHackTime = 0;
-      setHackButton(true);
+      showTime(-1);
+      showHacks(nHacksPerCycle - cycleNHacks);
     }
     else
     {
-      showTime(timeLeft);
+      int timeLeft = cooldown_time - (getTime() - lastHackTime);
+      Serial.println("timeLeft");
+      Serial.println(timeLeft);
+      if (timeLeft <= 0)
+      {
+        lastHackTime = 0;
+        setHackButton(true);
+      }
+      else
+      {
+        showTime(timeLeft);
+        showHacks(nHacksPerCycle - cycleNHacks);
+      }
     }
   }
 }
 
 void loop()
 {
+  Serial.println("\ncycleNHacks");
+  Serial.println(cycleNHacks);
+  
+  Serial.println("cycleStartTime");
+  Serial.println(cycleStartTime);
+  
+  Serial.println("lastHackTime");
+  Serial.println(lastHackTime);
+  
+  Serial.println("cooldown_time");
+  Serial.println(cooldown_time);
+  
+  Serial.println("getTime()");
+  Serial.println(getTime());
+  
   if (cycleStartTime > 0)
   {
     updateCycle();
@@ -132,13 +180,13 @@ void loop()
         // Hacked!
         if (cycleStartTime == 0)
         {
-          cycleStartTime = millis();
+          cycleStartTime = getTime();
         }
         cycleNHacks++;
         setHackButton(false);
         if (cycleNHacks < nHacksPerCycle)
         {
-          lastHackTime = millis();
+          lastHackTime = getTime();
         }
       }
     }
